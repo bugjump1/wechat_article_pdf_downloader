@@ -85,7 +85,11 @@ private final class ArticlePdfRenderer: NSObject, WKNavigationDelegate {
 
     progress(8, "正在创建 WKWebView")
     let configuration = WKWebViewConfiguration()
-    configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+    if #available(iOS 14.0, *) {
+      configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+    } else {
+      configuration.preferences.javaScriptEnabled = true
+    }
 
     let view = WKWebView(frame: CGRect(x: -10000, y: 0, width: 390, height: 844), configuration: configuration)
     view.navigationDelegate = self

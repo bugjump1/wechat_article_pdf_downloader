@@ -31,6 +31,31 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Generate Android project files
+        shell: bash
+        run: |
+          mkdir -p /tmp/wechat-android-backup/app/src/main/kotlin/com/bugjump/wechatpdf
+          mkdir -p /tmp/wechat-android-backup/app/src/main/res/drawable
+          mkdir -p /tmp/wechat-android-backup/app/src/main/res/values
+          [ -f android/settings.gradle ] && cp android/settings.gradle /tmp/wechat-android-backup/settings.gradle
+          [ -f android/build.gradle ] && cp android/build.gradle /tmp/wechat-android-backup/build.gradle
+          [ -f android/gradle.properties ] && cp android/gradle.properties /tmp/wechat-android-backup/gradle.properties
+          [ -f android/app/build.gradle ] && cp android/app/build.gradle /tmp/wechat-android-backup/app/build.gradle
+          [ -f android/app/src/main/AndroidManifest.xml ] && cp android/app/src/main/AndroidManifest.xml /tmp/wechat-android-backup/app/src/main/AndroidManifest.xml
+          [ -f android/app/src/main/kotlin/com/bugjump/wechatpdf/MainActivity.kt ] && cp android/app/src/main/kotlin/com/bugjump/wechatpdf/MainActivity.kt /tmp/wechat-android-backup/app/src/main/kotlin/com/bugjump/wechatpdf/MainActivity.kt
+          [ -f android/app/src/main/res/drawable/ic_launcher.xml ] && cp android/app/src/main/res/drawable/ic_launcher.xml /tmp/wechat-android-backup/app/src/main/res/drawable/ic_launcher.xml
+          [ -f android/app/src/main/res/values/styles.xml ] && cp android/app/src/main/res/values/styles.xml /tmp/wechat-android-backup/app/src/main/res/values/styles.xml
+          flutter create --platforms=android --project-name wechat_article_pdf_downloader --org com.bugjump .
+          [ -f /tmp/wechat-android-backup/settings.gradle ] && cp /tmp/wechat-android-backup/settings.gradle android/settings.gradle
+          [ -f /tmp/wechat-android-backup/build.gradle ] && cp /tmp/wechat-android-backup/build.gradle android/build.gradle
+          [ -f /tmp/wechat-android-backup/gradle.properties ] && cp /tmp/wechat-android-backup/gradle.properties android/gradle.properties
+          [ -f /tmp/wechat-android-backup/app/build.gradle ] && cp /tmp/wechat-android-backup/app/build.gradle android/app/build.gradle
+          [ -f /tmp/wechat-android-backup/app/src/main/AndroidManifest.xml ] && cp /tmp/wechat-android-backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          mkdir -p android/app/src/main/kotlin/com/bugjump/wechatpdf
+          [ -f /tmp/wechat-android-backup/app/src/main/kotlin/com/bugjump/wechatpdf/MainActivity.kt ] && cp /tmp/wechat-android-backup/app/src/main/kotlin/com/bugjump/wechatpdf/MainActivity.kt android/app/src/main/kotlin/com/bugjump/wechatpdf/MainActivity.kt
+          [ -f /tmp/wechat-android-backup/app/src/main/res/drawable/ic_launcher.xml ] && cp /tmp/wechat-android-backup/app/src/main/res/drawable/ic_launcher.xml android/app/src/main/res/drawable/ic_launcher.xml
+          [ -f /tmp/wechat-android-backup/app/src/main/res/values/styles.xml ] && cp /tmp/wechat-android-backup/app/src/main/res/values/styles.xml android/app/src/main/res/values/styles.xml
+
       - name: Flutter doctor
         run: flutter doctor -v
 
@@ -51,6 +76,22 @@ jobs:
 
           echo "Flutter did not place the APK at the expected path. Searching build output..."
           found_apk="$(find build -name '*debug*.apk' -print -quit)"
+          if [ -n "$found_apk" ] && [ -f "$found_apk" ]; then
+            mkdir -p build/app/outputs/flutter-apk
+            cp "$found_apk" build/app/outputs/flutter-apk/app-debug.apk
+            echo "Copied $found_apk to build/app/outputs/flutter-apk/app-debug.apk"
+            exit 0
+          fi
+
+          echo "Trying direct Gradle debug build..."
+          if [ -f android/gradlew ]; then
+            chmod +x android/gradlew
+            (cd android && ./gradlew :app:assembleDebug --stacktrace)
+          else
+            (cd android && gradle :app:assembleDebug --stacktrace)
+          fi
+
+          found_apk="$(find android build -name '*.apk' -print -quit)"
           if [ -n "$found_apk" ] && [ -f "$found_apk" ]; then
             mkdir -p build/app/outputs/flutter-apk
             cp "$found_apk" build/app/outputs/flutter-apk/app-debug.apk
