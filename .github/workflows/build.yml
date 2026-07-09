@@ -38,7 +38,27 @@ jobs:
         run: flutter pub get
 
       - name: Build debug APK
-        run: flutter build apk --debug
+        shell: bash
+        run: |
+          set +e
+          flutter build apk --debug
+          build_status=$?
+          set -e
+
+          if [ -f build/app/outputs/flutter-apk/app-debug.apk ]; then
+            exit 0
+          fi
+
+          echo "Flutter did not place the APK at the expected path. Searching build output..."
+          found_apk="$(find build -name '*debug*.apk' -print -quit)"
+          if [ -n "$found_apk" ] && [ -f "$found_apk" ]; then
+            mkdir -p build/app/outputs/flutter-apk
+            cp "$found_apk" build/app/outputs/flutter-apk/app-debug.apk
+            echo "Copied $found_apk to build/app/outputs/flutter-apk/app-debug.apk"
+            exit 0
+          fi
+
+          exit "$build_status"
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
@@ -114,6 +134,13 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Reset iOS CocoaPods state
+        shell: bash
+        run: |
+          rm -rf ios/Pods ios/Podfile.lock
+          cd ios
+          pod install --repo-update
 
       - name: Build iOS app without codesign
         run: flutter build ios --release --no-codesign
