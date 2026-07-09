@@ -1,0 +1,133 @@
+name: Build Flutter App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wechat-pdf-android-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Generate Windows project files
+        run: flutter create --platforms=windows --project-name wechat_article_pdf_downloader --org com.bugjump .
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Upload Windows EXE package
+        uses: actions/upload-artifact@v4
+        with:
+          name: wechat-pdf-windows-release
+          path: build/windows/x64/runner/Release/**
+          if-no-files-found: error
+
+  build-ios-unsigned:
+    name: Build iOS unsigned IPA for self-signing
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate iOS project files
+        shell: bash
+        run: |
+          mkdir -p /tmp/wechat-ios-backup/Runner
+          [ -f ios/Podfile ] && cp ios/Podfile /tmp/wechat-ios-backup/Podfile
+          [ -f ios/Runner/AppDelegate.swift ] && cp ios/Runner/AppDelegate.swift /tmp/wechat-ios-backup/Runner/AppDelegate.swift
+          [ -f ios/Runner/Info.plist ] && cp ios/Runner/Info.plist /tmp/wechat-ios-backup/Runner/Info.plist
+          flutter create --platforms=ios --project-name wechat_article_pdf_downloader --org com.bugjump .
+          [ -f /tmp/wechat-ios-backup/Podfile ] && cp /tmp/wechat-ios-backup/Podfile ios/Podfile
+          [ -f /tmp/wechat-ios-backup/Runner/AppDelegate.swift ] && cp /tmp/wechat-ios-backup/Runner/AppDelegate.swift ios/Runner/AppDelegate.swift
+          [ -f /tmp/wechat-ios-backup/Runner/Info.plist ] && cp /tmp/wechat-ios-backup/Runner/Info.plist ios/Runner/Info.plist
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build iOS app without codesign
+        run: flutter build ios --release --no-codesign
+
+      - name: Create unsigned IPA
+        run: |
+          rm -rf Payload unsigned-wechat-pdf.ipa
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
+          zip -qry unsigned-wechat-pdf.ipa Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: wechat-pdf-ios-unsigned-ipa
+          path: unsigned-wechat-pdf.ipa
+          if-no-files-found: error
